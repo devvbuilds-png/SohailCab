@@ -128,7 +128,7 @@ export default function DriverSheet({
     const { request: req, ride } = result;
     const seatsRemaining = ride.total_seats - ride.booked_seats;
     const price = getPricePerPerson(ride.booked_seats);
-    const msg = `🚖 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${seatsRemaining} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${currentUrl}`;
+    const msg = `🚕 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${seatsRemaining} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${currentUrl}`;
     return `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 

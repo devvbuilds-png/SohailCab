@@ -10,7 +10,7 @@ import RideDetailSheet from "@/components/RideDetailSheet";
 import DriverSheet from "@/components/DriverSheet";
 import RequestRideSheet from "@/components/RequestRideSheet";
 
-const DRIVER_PHONE = "919999999999";
+const DRIVER_PHONE = "918050132060";
 
 export default function Home() {
   const dates = getNext7Dates();
@@ -81,7 +81,7 @@ export default function Home() {
       const seatsLeft = ride.total_seats - ride.booked_seats;
       const price = getPricePerPerson(ride.booked_seats || 1);
       const baseUrl = window.location.origin + window.location.pathname;
-      const msg = `🚖 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${seatsLeft} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${baseUrl}`;
+      const msg = `🚕 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${seatsLeft} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${baseUrl}`;
       if (waWindow) waWindow.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     } else {
       waWindow?.close();
