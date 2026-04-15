@@ -1,0 +1,155 @@
+﻿@import "tailwindcss";
+
+:root {
+  --background: #f4efe7;
+  --foreground: #121212;
+  --primary: #121212;
+  --primary-hover: #1f1f1f;
+  --secondary: #c96a21;
+  --cta: #121212;
+  --cta-hover: #000000;
+  --green: #16794f;
+  --green-light: #e7f6ee;
+  --muted: #5f564d;
+  --muted-light: #8f8576;
+  --card: #fffaf3;
+  --card-elevated: #fffaf3;
+  --border: #e1d5c6;
+  --border-light: #eee3d4;
+  --surface: rgba(255, 255, 255, 0.7);
+  --danger: #c0392b;
+  --danger-light: #fef2ef;
+  --request-bg: #fff7ed;
+  --request-border: #e7d3bf;
+  --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-md: 0 8px 22px rgba(17, 17, 17, 0.08);
+  --shadow-lg: 0 20px 60px rgba(17, 17, 17, 0.18);
+  --shadow-card: 0 18px 40px rgba(17, 17, 17, 0.06);
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+  --color-green: var(--green);
+  --color-green-light: var(--green-light);
+  --color-muted: var(--muted);
+  --color-muted-light: var(--muted-light);
+  --color-card: var(--card);
+  --color-card-elevated: var(--card-elevated);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-surface: var(--surface);
+  --color-danger: var(--danger);
+  --color-danger-light: var(--danger-light);
+  --color-request-bg: var(--request-bg);
+  --color-request-border: var(--request-border);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a {
+  touch-action: manipulation;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(201, 106, 33, 0.15), transparent 28%),
+    radial-gradient(circle at top right, rgba(18, 18, 18, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8f3ea 0%, #f4efe7 55%, #efe7da 100%);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: contain;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.sheet-overlay {
+  animation: fadeIn 0.18s ease-out;
+}
+
+.sheet-content {
+  animation: sheetUp 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(18px); opacity: 0.35; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.dialog-enter {
+  animation: dialogIn 0.18s ease-out;
+}
+
+@keyframes dialogIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-press {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.card-press:active {
+  transform: scale(0.985);
+  box-shadow: var(--shadow-sm);
+}
+
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
+
+.badge-pulse {
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-overlay,
+  .sheet-content,
+  .dialog-enter,
+  .card-press,
+  .badge-pulse {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
