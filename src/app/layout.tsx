@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: “SohailCab – Manipal ↔ Airport”,
-  description: “Share a cab between Manipal and Mangalore Airport”,
+  title: "SohailCab - Manipal to Airport",
+  description: "Share a cab between Manipal and Mangalore Airport",
 };
 
 export const viewport: Viewport = {
