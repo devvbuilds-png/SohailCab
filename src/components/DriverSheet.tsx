@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Booking, Direction, Ride, RideFormData, RideRequest } from "@/lib/types";
 import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, toWhatsAppNumber } from "@/lib/utils";
-import { ChevronDown, ChevronUp, GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock } from "lucide-react";
+import { ChevronDown, ChevronUp, GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock, X } from "lucide-react";
 import BottomSheet from "./BottomSheet";
 import TimePicker from "./TimePicker";
 
@@ -52,6 +52,8 @@ export default function DriverSheet({
   const [addName, setAddName] = useState("");
   const [addPhone, setAddPhone] = useState("");
   const [addingSaving, setAddingSaving] = useState(false);
+  const [confirmDeleteBooking, setConfirmDeleteBooking] = useState<string | null>(null);
+  const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
 
   // Keep passenger slots in sync with bookedSeats
   useEffect(() => {
@@ -185,6 +187,31 @@ export default function DriverSheet({
     });
   };
 
+  const handleDeleteBooking = async (bookingId: string, rideId: string) => {
+    setDeletingBooking(bookingId);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: bookingId, pin: "1234" }),
+      });
+      if (res.ok) {
+        setBookingsMap((prev) => ({
+          ...prev,
+          [rideId]: (prev[rideId] || []).filter((b) => b.id !== bookingId),
+        }));
+        setAllRides((prev) =>
+          prev.map((r) =>
+            r.id === rideId ? { ...r, booked_seats: Math.max(0, r.booked_seats - 1) } : r
+          )
+        );
+        setConfirmDeleteBooking(null);
+      }
+    } finally {
+      setDeletingBooking(null);
+    }
+  };
+
   const handleAddPassenger = async (rideId: string) => {
     if (!addName.trim() || !addPhone.trim()) return;
     setAddingSaving(true);
@@ -253,15 +280,51 @@ export default function DriverSheet({
           <p className="text-xs text-muted-light">No passengers yet</p>
         ) : (
           <div className="space-y-2">
-            {rideBookings.map((b) => (
-              <div key={b.id} className="flex items-center justify-between gap-2">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
-                  <span className="text-xs text-muted shrink-0">{b.phone}</span>
+            {rideBookings.map((b) => {
+              const isConfirming = confirmDeleteBooking === b.id;
+              const isDeleting = deletingBooking === b.id;
+              return (
+                <div key={b.id} className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
+                      <span className="text-xs text-muted shrink-0">{b.phone}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {sourceTag(b.source)}
+                      <button
+                        onClick={() => setConfirmDeleteBooking(isConfirming ? null : b.id)}
+                        aria-label="Remove passenger"
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-white text-muted transition-colors hover:border-danger/40 hover:text-danger"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </div>
+                  {isConfirming && (
+                    <div className="flex items-center justify-between gap-2 rounded-[0.8rem] border border-danger/30 bg-danger-light px-3 py-2">
+                      <p className="text-[11px] font-medium text-danger">Remove {b.name}?</p>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setConfirmDeleteBooking(null)}
+                          disabled={isDeleting}
+                          className="rounded-[0.6rem] border border-border/70 bg-white px-2.5 py-1 text-[11px] font-semibold text-muted hover:text-foreground disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBooking(b.id, ride.id)}
+                          disabled={isDeleting}
+                          className="rounded-[0.6rem] bg-danger px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                        >
+                          {isDeleting ? "…" : "Remove"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="shrink-0">{sourceTag(b.source)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

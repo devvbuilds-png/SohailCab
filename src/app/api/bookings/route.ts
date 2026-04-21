@@ -73,3 +73,42 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(booking);
 }
+
+export async function DELETE(req: NextRequest) {
+  const supabase = getSupabase();
+  const { id, pin } = await req.json();
+
+  if (pin !== ADMIN_PIN) {
+    return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
+  }
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const { data: booking, error: bookErr } = await supabase
+    .from("bookings")
+    .select("ride_id")
+    .eq("id", id)
+    .single();
+
+  if (bookErr || !booking) {
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  }
+
+  const { error: deleteErr } = await supabase.from("bookings").delete().eq("id", id);
+  if (deleteErr) return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+
+  const { data: ride } = await supabase
+    .from("rides")
+    .select("booked_seats")
+    .eq("id", booking.ride_id)
+    .single();
+
+  if (ride) {
+    const next = Math.max(0, (ride.booked_seats || 0) - 1);
+    await supabase.from("rides").update({ booked_seats: next }).eq("id", booking.ride_id);
+  }
+
+  return NextResponse.json({ success: true });
+}
