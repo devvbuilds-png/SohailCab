@@ -73,8 +73,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
   }
 
-  const { error } = await supabase.from("rides").delete().eq("id", id);
+  const { error: bookingsErr } = await supabase.from("bookings").delete().eq("ride_id", id);
+  if (bookingsErr) return NextResponse.json({ error: bookingsErr.message }, { status: 500 });
 
+  const { error } = await supabase.from("rides").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
