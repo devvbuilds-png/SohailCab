@@ -160,10 +160,10 @@ export default function DriverSheet({
 
   const handleMessageStudent = (result: AcceptedResult) => {
     const { request: req } = result;
-    const base = `Hi ${req.name} 👋\nYour ride is confirmed!\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${req.seats_needed} seat(s) confirmed for you.`;
+    const base = `Hi ${req.name} 👋\nYour ride is confirmed!\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n\n${req.seats_needed} seat(s) confirmed for you.`;
     const msg = req.solo
-      ? `${base}\nI'll let you know about the fare soon.`
-      : `${base}\nThe ride is open for sharing, I'll let you know the fare split once everyone's confirmed.`;
+      ? `${base}\n\nI'll let you know about the fare soon.`
+      : `${base}\n\nThe ride is open for sharing, I'll let you know the fare split once everyone's confirmed.`;
     const a = document.createElement("a");
     a.href = `whatsapp://send?phone=${toWhatsAppNumber(req.phone)}&text=${encodeURIComponent(msg)}`;
     a.click();
@@ -173,7 +173,7 @@ export default function DriverSheet({
     const { request: req, ride } = result;
     const booked = ride.booked_seats;
     const seatsLeft = ride.total_seats - booked;
-    const msg = `🚗 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\nBook a seat: ${currentUrl}`;
+    const msg = `🚗 Sohail's Cab\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\n\nBook a seat: ${currentUrl}`;
     window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 

@@ -79,7 +79,7 @@ export default function Home() {
       const booked = ride.booked_seats;
       const seatsLeft = ride.total_seats - booked;
       const baseUrl = window.location.origin + window.location.pathname;
-      const msg = `🚗 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\nBook a seat: ${baseUrl}`;
+      const msg = `🚗 Sohail's Cab\n\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\n\nBook a seat: ${baseUrl}`;
       window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     }
   };
@@ -95,7 +95,7 @@ export default function Home() {
 
     if (res.ok && ride) {
       await loadRides();
-      const msg = `Hi Sohail 👋 I booked a seat.\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\nName: ${name}\nPhone: ${phone}`;
+      const msg = `Hi Sohail 👋 I booked a seat.\n\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n\nName: ${name}\nPhone: ${phone}`;
       const a = document.createElement("a");
       a.href = `whatsapp://send?phone=${DRIVER_PHONE}&text=${encodeURIComponent(msg)}`;
       a.click();
