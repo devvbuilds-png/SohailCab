@@ -33,7 +33,7 @@ export default function DriverSheet({
   const [direction, setDirection] = useState<Direction>("manipal-to-airport");
   const [date, setDate] = useState(dates[0]);
   const [time, setTime] = useState("06:00");
-  const [totalSeats, setTotalSeats] = useState(4);
+  const [totalSeats, setTotalSeats] = useState(3);
   const [bookedSeats, setBookedSeats] = useState(1);
   const [passengers, setPassengers] = useState<{ name: string; phone: string }[]>([{ name: "", phone: "" }]);
 
