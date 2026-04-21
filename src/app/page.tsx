@@ -12,9 +12,20 @@ import RequestRideSheet from "@/components/RequestRideSheet";
 
 const DRIVER_PHONE = "918050132060";
 
+function getMaxCustomDate(daysAhead: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAhead);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function Home() {
   const dates = getNext7Dates();
   const [selectedDate, setSelectedDate] = useState(dates[0]);
+  const [customDate, setCustomDate] = useState<string | null>(null);
+  const maxCustomDate = getMaxCustomDate(60);
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
@@ -151,7 +162,22 @@ export default function Home() {
           </button>
         </div>
         <div className="mx-auto mt-3 max-w-md">
-          <DateFilter dates={dates} selected={selectedDate} onSelect={setSelectedDate} />
+          <DateFilter
+            dates={dates}
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            customDate={customDate}
+            onCustomDateChange={(d) => {
+              setCustomDate(d);
+              if (d) {
+                setSelectedDate(d);
+              } else if (selectedDate === customDate) {
+                setSelectedDate(dates[0]);
+              }
+            }}
+            minCustomDate={dates[0]}
+            maxCustomDate={maxCustomDate}
+          />
         </div>
       </header>
 
