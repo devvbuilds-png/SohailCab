@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Booking, Direction, Ride, RideFormData, RideRequest } from "@/lib/types";
-import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, toWhatsAppNumber, getOrdinal } from "@/lib/utils";
+import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, toWhatsAppNumber } from "@/lib/utils";
 import { ChevronDown, ChevronUp, GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock } from "lucide-react";
 import BottomSheet from "./BottomSheet";
 import TimePicker from "./TimePicker";
@@ -160,7 +160,10 @@ export default function DriverSheet({
 
   const handleMessageStudent = (result: AcceptedResult) => {
     const { request: req } = result;
-    const msg = `Hi ${req.name} 👋\nYour ride is confirmed!\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${req.seats_needed} seat(s) confirmed for you.\n\nSee you then!\n— Sohail`;
+    const base = `Hi ${req.name} 👋\nYour ride is confirmed!\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${req.seats_needed} seat(s) confirmed for you.`;
+    const msg = req.solo
+      ? `${base}\nI'll let you know about the fare soon.`
+      : `${base}\nThe ride is open for sharing, I'll let you know the fare split once everyone's confirmed.`;
     const a = document.createElement("a");
     a.href = `whatsapp://send?phone=${toWhatsAppNumber(req.phone)}&text=${encodeURIComponent(msg)}`;
     a.click();
@@ -169,9 +172,8 @@ export default function DriverSheet({
   const handleShareGroup = (result: AcceptedResult) => {
     const { request: req, ride } = result;
     const booked = ride.booked_seats;
-    const plural = booked === 1 ? "person" : "people";
-    const nextOrdinal = getOrdinal(booked + 1);
-    const msg = `🚗 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${booked} ${plural} already sharing — you'd be the ${nextOrdinal} passenger.\n\nBook a seat: ${currentUrl}`;
+    const seatsLeft = ride.total_seats - booked;
+    const msg = `🚗 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\nBook a seat: ${currentUrl}`;
     window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 

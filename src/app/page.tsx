@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Ride, RideFormData } from "@/lib/types";
-import { getNext7Dates, getDirectionLabel, formatDateShort, formatTime, getOrdinal } from "@/lib/utils";
+import { getNext7Dates, getDirectionLabel, formatDateShort, formatTime } from "@/lib/utils";
 import { Car, Lock } from "lucide-react";
 import DateFilter from "@/components/DateFilter";
 import RideCard from "@/components/RideCard";
@@ -77,10 +77,9 @@ export default function Home() {
       setSelectedDate(data.date);
 
       const booked = ride.booked_seats;
-      const plural = booked === 1 ? "person" : "people";
-      const nextOrdinal = getOrdinal(booked + 1);
+      const seatsLeft = ride.total_seats - booked;
       const baseUrl = window.location.origin + window.location.pathname;
-      const msg = `🚗 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${booked} ${plural} already sharing — you'd be the ${nextOrdinal} passenger.\n\nBook a seat: ${baseUrl}`;
+      const msg = `🚗 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\nBook a seat: ${baseUrl}`;
       window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     }
   };
@@ -96,7 +95,7 @@ export default function Home() {
 
     if (res.ok && ride) {
       await loadRides();
-      const msg = `Hi Sohail, I booked a seat. Name: ${name}, Phone: ${phone}, ${getDirectionLabel(ride.direction)}, ${formatDateShort(ride.date)} ${formatTime(ride.time)}.`;
+      const msg = `Hi Sohail 👋 I booked a seat.\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\nName: ${name}\nPhone: ${phone}`;
       const a = document.createElement("a");
       a.href = `whatsapp://send?phone=${DRIVER_PHONE}&text=${encodeURIComponent(msg)}`;
       a.click();
