@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Ride, RideFormData } from "@/lib/types";
-import { getNext7Dates, getDirectionLabel, formatDateShort, formatTime, getPricePerPerson } from "@/lib/utils";
+import { getNext7Dates, getDirectionLabel, formatDateShort, formatTime, getOrdinal } from "@/lib/utils";
 import { Car, Lock } from "lucide-react";
 import DateFilter from "@/components/DateFilter";
 import RideCard from "@/components/RideCard";
@@ -23,7 +23,7 @@ export default function Home() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [driverDefaultTab, setDriverDefaultTab] = useState<"post" | "requests">("post");
+  const [driverDefaultTab, setDriverDefaultTab] = useState<"post" | "requests" | "passengers">("post");
   const [requestOpen, setRequestOpen] = useState(false);
 
   const loadRides = useCallback(async () => {
@@ -57,9 +57,6 @@ export default function Home() {
   const filteredRides = rides.filter((r) => r.date === selectedDate);
 
   const handlePostRide = async (data: RideFormData) => {
-    // Open window immediately (before any await) to preserve user gesture context
-    const waWindow = window.open("", "_blank");
-
     const res = await fetch("/api/rides", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,6 +67,7 @@ export default function Home() {
         time: data.time,
         total_seats: data.total_seats,
         booked_seats: data.booked_seats,
+        passengers: data.passengers,
       }),
     });
 
@@ -78,18 +76,16 @@ export default function Home() {
       await loadRides();
       setSelectedDate(data.date);
 
-      const seatsLeft = ride.total_seats - ride.booked_seats;
-      const price = getPricePerPerson(ride.booked_seats || 1);
+      const booked = ride.booked_seats;
+      const plural = booked === 1 ? "person" : "people";
+      const nextOrdinal = getOrdinal(booked + 1);
       const baseUrl = window.location.origin + window.location.pathname;
-      const msg = `🚕 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${seatsLeft} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${baseUrl}`;
-      if (waWindow) waWindow.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    } else {
-      waWindow?.close();
+      const msg = `🚗 Sohail's Cab\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n${booked} ${plural} already sharing — you'd be the ${nextOrdinal} passenger.\n\nBook a seat: ${baseUrl}`;
+      window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     }
   };
 
   const handleBookSeat = async (rideId: string, name: string, phone: string) => {
-    const waWindow = window.open("", "_blank");
     const ride = rides.find((r) => r.id === rideId);
 
     const res = await fetch("/api/bookings", {
@@ -101,10 +97,14 @@ export default function Home() {
     if (res.ok && ride) {
       await loadRides();
       const msg = `Hi Sohail, I booked a seat. Name: ${name}, Phone: ${phone}, ${getDirectionLabel(ride.direction)}, ${formatDateShort(ride.date)} ${formatTime(ride.time)}.`;
-      if (waWindow) waWindow.location.href = `https://wa.me/${DRIVER_PHONE}?text=${encodeURIComponent(msg)}`;
-    } else {
-      waWindow?.close();
+      const a = document.createElement("a");
+      a.href = `whatsapp://send?phone=${DRIVER_PHONE}&text=${encodeURIComponent(msg)}`;
+      a.click();
     }
+  };
+
+  const handleDeleteRide = (rideId: string) => {
+    setRides((prev) => prev.filter((r) => r.id !== rideId));
   };
 
   const handlePinSubmit = () => {
@@ -177,6 +177,7 @@ export default function Home() {
               key={ride.id}
               ride={ride}
               onTap={setSelectedRide}
+              onDelete={handleDeleteRide}
             />
           ))
         )}

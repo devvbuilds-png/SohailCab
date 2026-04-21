@@ -7,11 +7,10 @@ export function toWhatsAppNumber(phone: string): string {
   return digits;
 }
 
-const FLAT_FARE = 1500;
-
-export function getPricePerPerson(bookedSeats: number): number {
-  if (bookedSeats === 0) return FLAT_FARE;
-  return Math.round(FLAT_FARE / bookedSeats);
+export function getOrdinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 export function getDirectionLabel(direction: Direction): string {

@@ -29,9 +29,6 @@ export default function RequestRideSheet({ open, onClose, driverPhone, currentUr
     if (!name.trim() || !phone.trim()) return;
     setSubmitting(true);
 
-    // Open window before any await to preserve user gesture context
-    const waWindow = window.open("", "_blank");
-
     try {
       const res = await fetch("/api/requests", {
         method: "POST",
@@ -56,7 +53,10 @@ export default function RequestRideSheet({ open, onClose, driverPhone, currentUr
         if (solo) msg += `\nDon't want sharing: Yes`;
         msg += `\n\nCheck requests here: ${currentUrl}?tab=requests`;
 
-        if (waWindow) waWindow.location.href = `https://wa.me/${driverPhone}?text=${encodeURIComponent(msg)}`;
+        const a = document.createElement("a");
+        a.href = `whatsapp://send?phone=${driverPhone}&text=${encodeURIComponent(msg)}`;
+        a.click();
+
         onClose();
         setDirection("manipal-to-airport");
         setDate(dates[0]);
@@ -65,8 +65,6 @@ export default function RequestRideSheet({ open, onClose, driverPhone, currentUr
         setPhone("");
         setSeatsNeeded(1);
         setSolo(false);
-      } else {
-        waWindow?.close();
       }
     } finally {
       setSubmitting(false);
@@ -177,7 +175,7 @@ export default function RequestRideSheet({ open, onClose, driverPhone, currentUr
         <div className="flex items-center justify-between rounded-[1.15rem] border border-border/70 bg-white/65 px-4 py-3.5">
           <div>
             <p className="text-sm font-semibold text-foreground">I don&apos;t want to share the cab</p>
-            <p className="mt-0.5 text-xs text-muted">You&apos;ll pay for all seats</p>
+            <p className="mt-0.5 text-xs text-muted">No other passengers will be added</p>
           </div>
           <button
             onClick={() => setSolo(!solo)}

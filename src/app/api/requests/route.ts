@@ -99,6 +99,7 @@ export async function PATCH(req: NextRequest) {
       ride_id: ride.id,
       name: request.name,
       phone: request.phone,
+      source: "app",
     }));
 
     const { error: bookErr } = await supabase.from("bookings").insert(bookingRows);

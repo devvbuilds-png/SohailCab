@@ -15,6 +15,7 @@ export interface Booking {
   name: string;
   phone: string;
   created_at: string;
+  source?: "app" | "pre-confirmed" | "manual";
 }
 
 export interface RideFormData {
@@ -23,6 +24,7 @@ export interface RideFormData {
   time: string;
   total_seats: number;
   booked_seats: number;
+  passengers?: { name: string; phone: string }[];
 }
 
 export type RequestStatus = "pending" | "accepted" | "rejected";

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Direction, Ride, RideFormData, RideRequest } from "@/lib/types";
-import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, getPricePerPerson, toWhatsAppNumber } from "@/lib/utils";
-import { GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock } from "lucide-react";
+import { Booking, Direction, Ride, RideFormData, RideRequest } from "@/lib/types";
+import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, toWhatsAppNumber, getOrdinal } from "@/lib/utils";
+import { ChevronDown, ChevronUp, GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock } from "lucide-react";
 import BottomSheet from "./BottomSheet";
 import TimePicker from "./TimePicker";
 
@@ -12,7 +12,7 @@ interface DriverSheetProps {
   onClose: () => void;
   onSubmitRide: (data: RideFormData) => void;
   onRideCreated: () => void;
-  defaultTab?: "post" | "requests";
+  defaultTab?: "post" | "requests" | "passengers";
   currentUrl: string;
 }
 
@@ -26,7 +26,7 @@ export default function DriverSheet({
   defaultTab = "post",
   currentUrl,
 }: DriverSheetProps) {
-  const [activeTab, setActiveTab] = useState<"post" | "requests">(defaultTab);
+  const [activeTab, setActiveTab] = useState<"post" | "requests" | "passengers">(defaultTab);
 
   // Post tab state
   const dates = useMemo(() => getNext7Dates(), []);
@@ -35,12 +35,32 @@ export default function DriverSheet({
   const [time, setTime] = useState("06:00");
   const [totalSeats, setTotalSeats] = useState(4);
   const [bookedSeats, setBookedSeats] = useState(1);
+  const [passengers, setPassengers] = useState<{ name: string; phone: string }[]>([{ name: "", phone: "" }]);
 
   // Requests tab state
   const [requests, setRequests] = useState<RideRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [acceptedResults, setAcceptedResults] = useState<Record<string, AcceptedResult>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Passengers dashboard state
+  const [allRides, setAllRides] = useState<Ride[]>([]);
+  const [bookingsMap, setBookingsMap] = useState<Record<string, Booking[]>>({});
+  const [loadingPassengers, setLoadingPassengers] = useState(false);
+  const [pastExpanded, setPastExpanded] = useState(false);
+  const [addingForRide, setAddingForRide] = useState<string | null>(null);
+  const [addName, setAddName] = useState("");
+  const [addPhone, setAddPhone] = useState("");
+  const [addingSaving, setAddingSaving] = useState(false);
+
+  // Keep passenger slots in sync with bookedSeats
+  useEffect(() => {
+    setPassengers((prev) => {
+      const next = [...prev];
+      while (next.length < bookedSeats) next.push({ name: "", phone: "" });
+      return next.slice(0, bookedSeats);
+    });
+  }, [bookedSeats]);
 
   const loadRequests = useCallback(async () => {
     setLoadingRequests(true);
@@ -55,28 +75,51 @@ export default function DriverSheet({
     }
   }, []);
 
+  const loadPassengerDashboard = useCallback(async () => {
+    setLoadingPassengers(true);
+    try {
+      const [ridesRes, bookingsRes] = await Promise.all([
+        fetch("/api/rides?pin=1234"),
+        fetch("/api/bookings?pin=1234"),
+      ]);
+      if (ridesRes.ok && bookingsRes.ok) {
+        const rides: Ride[] = await ridesRes.json();
+        const bookings: Booking[] = await bookingsRes.json();
+        setAllRides(rides);
+        const map: Record<string, Booking[]> = {};
+        for (const b of bookings) {
+          if (!map[b.ride_id]) map[b.ride_id] = [];
+          map[b.ride_id].push(b);
+        }
+        setBookingsMap(map);
+      }
+    } finally {
+      setLoadingPassengers(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (open) {
       setActiveTab(defaultTab);
-      if (defaultTab === "requests") {
-        loadRequests();
-      }
+      if (defaultTab === "requests") loadRequests();
+      if (defaultTab === "passengers") loadPassengerDashboard();
     }
-  }, [open, defaultTab, loadRequests]);
+  }, [open, defaultTab, loadRequests, loadPassengerDashboard]);
 
-  const handleTabChange = (tab: "post" | "requests") => {
+  const handleTabChange = (tab: "post" | "requests" | "passengers") => {
     setActiveTab(tab);
     if (tab === "requests") loadRequests();
+    if (tab === "passengers") loadPassengerDashboard();
   };
 
+  const passengersValid = passengers.every((p) => p.name.trim() && p.phone.trim());
+
   const handlePostSubmit = () => {
-    onSubmitRide({ direction, date, time, total_seats: totalSeats, booked_seats: bookedSeats });
+    onSubmitRide({ direction, date, time, total_seats: totalSeats, booked_seats: bookedSeats, passengers });
     onClose();
   };
 
   const handleReject = async (req: RideRequest) => {
-    // Open window before any await to preserve user gesture context
-    const waWindow = window.open("", "_blank");
     setActionLoading(req.id);
     try {
       const res = await fetch("/api/requests", {
@@ -86,13 +129,10 @@ export default function DriverSheet({
       });
       if (res.ok) {
         setRequests((prev) => prev.filter((r) => r.id !== req.id));
-        const dirLabel = getDirectionLabel(req.direction);
-        const dateStr = formatDateShort(req.date);
-        const timeStr = formatTime(req.time);
-        const msg = `Hi ${req.name} 👋\nUnfortunately Sohail's cab isn't available for ${dirLabel} on ${dateStr} at ${timeStr}.\n\nFeel free to request another time on SohailCab!`;
-        if (waWindow) waWindow.location.href = `https://wa.me/${toWhatsAppNumber(req.phone)}?text=${encodeURIComponent(msg)}`;
-      } else {
-        waWindow?.close();
+        const msg = `Hi ${req.name} 👋\nUnfortunately Sohail's cab isn't available for ${getDirectionLabel(req.direction)} on ${formatDateShort(req.date)} at ${formatTime(req.time)}.\n\nFeel free to request another time on SohailCab!`;
+        const a = document.createElement("a");
+        a.href = `whatsapp://send?phone=${toWhatsAppNumber(req.phone)}&text=${encodeURIComponent(msg)}`;
+        a.click();
       }
     } finally {
       setActionLoading(null);
@@ -108,7 +148,7 @@ export default function DriverSheet({
         body: JSON.stringify({ id: req.id, action: "accept" }),
       });
       if (res.ok) {
-        const { ride } = await res.json() as { ride: Ride };
+        const { ride } = (await res.json()) as { ride: Ride };
         setRequests((prev) => prev.filter((r) => r.id !== req.id));
         setAcceptedResults((prev) => ({ ...prev, [req.id]: { request: req, ride } }));
         onRideCreated();
@@ -118,18 +158,21 @@ export default function DriverSheet({
     }
   };
 
-  const getMessageStudentUrl = (result: AcceptedResult) => {
+  const handleMessageStudent = (result: AcceptedResult) => {
     const { request: req } = result;
     const msg = `Hi ${req.name} 👋\nYour ride is confirmed!\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${req.seats_needed} seat(s) confirmed for you.\n\nSee you then!\n— Sohail`;
-    return `https://wa.me/${toWhatsAppNumber(req.phone)}?text=${encodeURIComponent(msg)}`;
+    const a = document.createElement("a");
+    a.href = `whatsapp://send?phone=${toWhatsAppNumber(req.phone)}&text=${encodeURIComponent(msg)}`;
+    a.click();
   };
 
-  const getShareGroupUrl = (result: AcceptedResult) => {
+  const handleShareGroup = (result: AcceptedResult) => {
     const { request: req, ride } = result;
-    const seatsRemaining = ride.total_seats - ride.booked_seats;
-    const price = getPricePerPerson(ride.booked_seats);
-    const msg = `🚕 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${seatsRemaining} seats left\n\nCurrent fare: ₹${price}/person\nSplits further if more join (₹375–₹1500)\n\nBook here: ${currentUrl}`;
-    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const booked = ride.booked_seats;
+    const plural = booked === 1 ? "person" : "people";
+    const nextOrdinal = getOrdinal(booked + 1);
+    const msg = `🚗 Sohail's Cab\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n${booked} ${plural} already sharing — you'd be the ${nextOrdinal} passenger.\n\nBook a seat: ${currentUrl}`;
+    window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
   const dismissAccepted = (id: string) => {
@@ -140,22 +183,152 @@ export default function DriverSheet({
     });
   };
 
+  const handleAddPassenger = async (rideId: string) => {
+    if (!addName.trim() || !addPhone.trim()) return;
+    setAddingSaving(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ride_id: rideId, name: addName.trim(), phone: addPhone.trim(), source: "manual", pin: "1234" }),
+      });
+      if (res.ok) {
+        const booking: Booking = await res.json();
+        setBookingsMap((prev) => ({
+          ...prev,
+          [rideId]: [...(prev[rideId] || []), booking],
+        }));
+        setAddingForRide(null);
+        setAddName("");
+        setAddPhone("");
+      }
+    } finally {
+      setAddingSaving(false);
+    }
+  };
+
+  // Dashboard helpers
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingRides = allRides
+    .filter((r) => r.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  const pastRides = allRides
+    .filter((r) => r.date < today)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+
+  const sourceTag = (source?: string) => {
+    if (source === "app") {
+      return (
+        <span className="rounded-full bg-green/10 px-1.5 py-0.5 text-[10px] font-medium text-green">
+          app
+        </span>
+      );
+    }
+    if (source === "pre-confirmed" || source === "manual") {
+      return (
+        <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
+          added
+        </span>
+      );
+    }
+    return null;
+  };
+
+  const renderRideCard = (ride: Ride) => {
+    const rideBookings = bookingsMap[ride.id] || [];
+    const isAdding = addingForRide === ride.id;
+
+    return (
+      <div key={ride.id} className="rounded-[1.3rem] border border-border/70 bg-white/80 p-4 space-y-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+            {formatDateShort(ride.date)} · {formatTime(ride.time)}
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">{getDirectionLabel(ride.direction)}</p>
+        </div>
+
+        {rideBookings.length === 0 ? (
+          <p className="text-xs text-muted-light">No passengers yet</p>
+        ) : (
+          <div className="space-y-2">
+            {rideBookings.map((b) => (
+              <div key={b.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
+                  <span className="text-xs text-muted shrink-0">{b.phone}</span>
+                </div>
+                <div className="shrink-0">{sourceTag(b.source)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isAdding ? (
+          <div className="space-y-2 rounded-[1rem] border border-border/60 bg-surface/60 p-3">
+            <input
+              placeholder="Name"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              className="w-full rounded-[0.8rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+            />
+            <input
+              placeholder="Phone"
+              type="tel"
+              value={addPhone}
+              onChange={(e) => setAddPhone(e.target.value)}
+              className="w-full rounded-[0.8rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setAddingForRide(null); setAddName(""); setAddPhone(""); }}
+                className="rounded-[0.8rem] border border-border/70 bg-white px-3 py-2 text-sm font-medium text-muted hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAddPassenger(ride.id)}
+                disabled={!addName.trim() || !addPhone.trim() || addingSaving}
+                className="rounded-[0.8rem] bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {addingSaving ? "…" : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setAddingForRide(ride.id); setAddName(""); setAddPhone(""); }}
+            className="flex items-center gap-1.5 text-xs font-semibold text-secondary hover:opacity-80 transition-opacity"
+          >
+            <Plus size={13} />
+            Add passenger
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <BottomSheet open={open} onClose={onClose}>
       <div className="space-y-5">
         {/* Tab switcher */}
-        <div className="grid grid-cols-2 gap-2 rounded-[1.15rem] border border-border/70 bg-white/65 p-1.5">
+        <div className="grid grid-cols-3 gap-1.5 rounded-[1.15rem] border border-border/70 bg-white/65 p-1.5">
           <button
             onClick={() => handleTabChange("post")}
-            className={`rounded-[0.9rem] px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${activeTab === "post" ? "bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]" : "text-muted hover:text-foreground"}`}
+            className={`rounded-[0.9rem] px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${activeTab === "post" ? "bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]" : "text-muted hover:text-foreground"}`}
           >
-            Post a Ride
+            Post
           </button>
           <button
             onClick={() => handleTabChange("requests")}
-            className={`rounded-[0.9rem] px-4 py-2.5 text-sm font-semibold transition-all duration-200 ${activeTab === "requests" ? "bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]" : "text-muted hover:text-foreground"}`}
+            className={`rounded-[0.9rem] px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${activeTab === "requests" ? "bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]" : "text-muted hover:text-foreground"}`}
           >
             Requests
+          </button>
+          <button
+            onClick={() => handleTabChange("passengers")}
+            className={`rounded-[0.9rem] px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${activeTab === "passengers" ? "bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]" : "text-muted hover:text-foreground"}`}
+          >
+            Rides
           </button>
         </div>
 
@@ -231,10 +404,36 @@ export default function DriverSheet({
                   <Plus size={16} />
                 </button>
               </div>
-              <p className="mt-2 text-sm text-muted">This keeps the fare ladder accurate from the start.</p>
             </div>
 
-            <button onClick={handlePostSubmit} className="w-full rounded-[1.2rem] bg-cta px-5 py-4 text-[15px] font-semibold text-white shadow-[0_18px_35px_rgba(17,17,17,0.18)] transition-all duration-200 hover:bg-cta-hover active:scale-[0.99]">
+            {/* Passenger fields */}
+            <div className="space-y-3">
+              <label className="block text-[10px] font-semibold uppercase tracking-[0.28em] text-muted">Confirmed passengers</label>
+              {passengers.map((p, i) => (
+                <div key={i} className="rounded-[1.1rem] border border-border/70 bg-white/70 p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-muted">Passenger {i + 1}</p>
+                  <input
+                    placeholder="Name"
+                    value={p.name}
+                    onChange={(e) => setPassengers((prev) => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                    className="w-full rounded-[0.8rem] border border-border/70 bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+                  />
+                  <input
+                    placeholder="Phone"
+                    type="tel"
+                    value={p.phone}
+                    onChange={(e) => setPassengers((prev) => prev.map((x, j) => j === i ? { ...x, phone: e.target.value } : x))}
+                    className="w-full rounded-[0.8rem] border border-border/70 bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={handlePostSubmit}
+              disabled={!passengersValid}
+              className="w-full rounded-[1.2rem] bg-cta px-5 py-4 text-[15px] font-semibold text-white shadow-[0_18px_35px_rgba(17,17,17,0.18)] transition-all duration-200 hover:bg-cta-hover active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Post ride
             </button>
           </div>
@@ -263,24 +462,20 @@ export default function DriverSheet({
                 </div>
                 <div className="text-sm text-muted">{result.request.name} — {result.request.seats_needed} seat(s)</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <a
-                    href={getMessageStudentUrl(result)}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => handleMessageStudent(result)}
                     className="flex items-center justify-center gap-2 rounded-[1rem] bg-green px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
                   >
                     <MessageCircle size={15} />
                     Message {result.request.name.split(" ")[0]}
-                  </a>
-                  <a
-                    href={getShareGroupUrl(result)}
-                    target="_blank"
-                    rel="noreferrer"
+                  </button>
+                  <button
+                    onClick={() => handleShareGroup(result)}
                     className="flex items-center justify-center gap-2 rounded-[1rem] border border-border/70 bg-white/80 px-4 py-3 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-white"
                   >
                     <Share2 size={15} />
                     Share to group
-                  </a>
+                  </button>
                 </div>
               </div>
             ))}
@@ -347,6 +542,49 @@ export default function DriverSheet({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* RIDES TAB */}
+        {activeTab === "passengers" && (
+          <div className="space-y-5">
+            {loadingPassengers ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="h-7 w-7 animate-spin rounded-full border-2 border-border border-t-secondary" />
+              </div>
+            ) : (
+              <>
+                {/* Upcoming section */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted">Upcoming</p>
+                  {upcomingRides.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-white/50 px-6 py-10 text-center">
+                      <p className="text-sm font-medium text-muted">No upcoming rides</p>
+                    </div>
+                  ) : (
+                    upcomingRides.map(renderRideCard)
+                  )}
+                </div>
+
+                {/* Past section */}
+                {pastRides.length > 0 && (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setPastExpanded((v) => !v)}
+                      className="flex w-full items-center justify-between"
+                    >
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted">Past</p>
+                      {pastExpanded ? (
+                        <ChevronUp size={15} className="text-muted" />
+                      ) : (
+                        <ChevronDown size={15} className="text-muted" />
+                      )}
+                    </button>
+                    {pastExpanded && pastRides.map(renderRideCard)}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
