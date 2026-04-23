@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Ride, RideFormData } from "@/lib/types";
 import { getNext7Dates, getDirectionLabel, formatDateShort, formatTime } from "@/lib/utils";
 import { Car, Lock } from "lucide-react";
@@ -36,6 +36,7 @@ export default function Home() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [driverDefaultTab, setDriverDefaultTab] = useState<"post" | "requests" | "passengers">("post");
   const [requestOpen, setRequestOpen] = useState(false);
+  const [focusRideId, setFocusRideId] = useState<string | null>(null);
 
   const loadRides = useCallback(async () => {
     setLoading(true);
@@ -57,15 +58,46 @@ export default function Home() {
   }, [loadRides]);
 
   // Deep link: ?tab=requests → auto-open PIN sheet, land on Requests tab after correct PIN
+  // Deep link: ?date=YYYY-MM-DD → preselect that date (for shared ride links)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "requests") {
       setDriverDefaultTab("requests");
       setPinDialogOpen(true);
     }
-  }, []);
+    const dateParam = params.get("date");
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam >= dates[0] && dateParam <= maxCustomDate) {
+      if (dates.includes(dateParam)) {
+        setSelectedDate(dateParam);
+      } else {
+        setCustomDate(dateParam);
+        setSelectedDate(dateParam);
+      }
+    }
+  }, [dates, maxCustomDate]);
 
   const filteredRides = rides.filter((r) => r.date === selectedDate);
+
+  const datesWithRides = useMemo(() => new Set(rides.map((r) => r.date)), [rides]);
+
+  const nextAvailableDate = useMemo(() => {
+    const today = dates[0];
+    const candidates = Array.from(datesWithRides)
+      .filter((d) => d >= today && d !== selectedDate)
+      .sort();
+    if (candidates.length === 0) return null;
+    return candidates.find((d) => d > selectedDate) ?? candidates[0];
+  }, [datesWithRides, selectedDate, dates]);
+
+  const handleJumpToNextDate = () => {
+    if (!nextAvailableDate) return;
+    if (dates.includes(nextAvailableDate)) {
+      setSelectedDate(nextAvailableDate);
+    } else {
+      setCustomDate(nextAvailableDate);
+      setSelectedDate(nextAvailableDate);
+    }
+  };
 
   const handlePostRide = async (data: RideFormData) => {
     const res = await fetch("/api/rides", {
@@ -89,7 +121,7 @@ export default function Home() {
 
       const booked = ride.booked_seats;
       const seatsLeft = ride.total_seats - booked;
-      const baseUrl = window.location.origin + window.location.pathname;
+      const baseUrl = `${window.location.origin}${window.location.pathname}?date=${ride.date}`;
       const msg = `🚗 Sohail's Cab\n\n${getDirectionLabel(ride.direction)}\n${formatDateShort(ride.date)} · ${formatTime(ride.time)}\n\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\n\nBook a seat: ${baseUrl}`;
       window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     }
@@ -115,6 +147,16 @@ export default function Home() {
 
   const handleDeleteRide = (rideId: string) => {
     setRides((prev) => prev.filter((r) => r.id !== rideId));
+  };
+
+  const handleManageRide = (rideId: string) => {
+    setDriverDefaultTab("passengers");
+    setFocusRideId(rideId);
+    if (adminUnlocked) {
+      setPostOpen(true);
+    } else {
+      setPinDialogOpen(true);
+    }
   };
 
   const handlePinSubmit = () => {
@@ -177,6 +219,7 @@ export default function Home() {
             }}
             minCustomDate={dates[0]}
             maxCustomDate={maxCustomDate}
+            datesWithRides={datesWithRides}
           />
         </div>
       </header>
@@ -187,14 +230,30 @@ export default function Home() {
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-secondary" />
           </div>
         ) : filteredRides.length === 0 ? (
-          <div className="mt-10 flex flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border bg-card/70 px-6 py-16 text-center shadow-[0_14px_30px_rgba(17,17,17,0.04)]">
+          <div className="mt-10 flex flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border bg-card/70 px-6 py-12 text-center shadow-[0_14px_30px_rgba(17,17,17,0.04)]">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface text-muted-light">
               <Car size={28} />
             </div>
-            <p className="text-[15px] font-semibold text-foreground">No rides yet</p>
-            <p className="mt-1 max-w-[220px] text-sm text-muted">
-              Check another date or contact Sohail on WhatsApp.
+            <p className="text-[15px] font-semibold text-foreground">No rides on {formatDateShort(selectedDate)}</p>
+            <p className="mt-1 max-w-[240px] text-sm text-muted">
+              Request one for this day, or jump to a date that has rides.
             </p>
+            <div className="mt-5 flex w-full max-w-[280px] flex-col gap-2">
+              <button
+                onClick={() => setRequestOpen(true)}
+                className="rounded-[1.1rem] bg-cta px-5 py-3 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(17,17,17,0.15)] transition-all duration-200 hover:bg-cta-hover active:scale-[0.99]"
+              >
+                Request a ride for {formatDateShort(selectedDate)}
+              </button>
+              {nextAvailableDate && (
+                <button
+                  onClick={handleJumpToNextDate}
+                  className="rounded-[1.1rem] border border-border/80 bg-white/70 px-5 py-3 text-[14px] font-semibold text-muted transition-all duration-200 hover:border-secondary/40 hover:text-foreground"
+                >
+                  See {formatDateShort(nextAvailableDate)} instead
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           filteredRides.map((ride) => (
@@ -203,6 +262,7 @@ export default function Home() {
               ride={ride}
               onTap={setSelectedRide}
               onDelete={handleDeleteRide}
+              onManage={handleManageRide}
             />
           ))
         )}
@@ -281,11 +341,13 @@ export default function Home() {
 
       <DriverSheet
         open={postOpen}
-        onClose={() => setPostOpen(false)}
+        onClose={() => { setPostOpen(false); setFocusRideId(null); }}
         onSubmitRide={handlePostRide}
         onRideCreated={loadRides}
         defaultTab={driverDefaultTab}
         currentUrl={currentUrl}
+        focusRideId={focusRideId}
+        onFocusConsumed={() => setFocusRideId(null)}
       />
 
       <RequestRideSheet
@@ -293,6 +355,7 @@ export default function Home() {
         onClose={() => setRequestOpen(false)}
         driverPhone={DRIVER_PHONE}
         currentUrl={currentUrl}
+        initialDate={selectedDate}
       />
     </div>
   );

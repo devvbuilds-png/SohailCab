@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Ride } from "@/lib/types";
 import { getDirectionLabel, formatTime } from "@/lib/utils";
-import { GraduationCap, Plane, Trash2, X } from "lucide-react";
+import { GraduationCap, Pencil, Plane, Trash2, X } from "lucide-react";
 import SeatDots from "./SeatDots";
 
 const CAR_NUMBER = "KA 20 AC 8155";
@@ -12,9 +12,10 @@ interface RideCardProps {
   ride: Ride;
   onTap: (ride: Ride) => void;
   onDelete?: (rideId: string) => void;
+  onManage?: (rideId: string) => void;
 }
 
-export default function RideCard({ ride, onTap, onDelete }: RideCardProps) {
+export default function RideCard({ ride, onTap, onDelete, onManage }: RideCardProps) {
   const isFull = ride.booked_seats >= ride.total_seats;
   const isAirport = ride.direction === "manipal-to-airport";
   const seatsLeft = Math.max(ride.total_seats - ride.booked_seats, 0);
@@ -86,13 +87,24 @@ export default function RideCard({ ride, onTap, onDelete }: RideCardProps) {
                 Departure
               </div>
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setDeleteMode(true); }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-white/70 text-muted transition-colors hover:border-danger/40 hover:text-danger"
-              aria-label="Delete ride"
-            >
-              <Trash2 size={13} />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {onManage && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onManage(ride.id); }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-white/70 text-muted transition-colors hover:border-secondary/40 hover:text-foreground"
+                  aria-label="Manage ride"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setDeleteMode(true); }}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-white/70 text-muted transition-colors hover:border-danger/40 hover:text-danger"
+                aria-label="Delete ride"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         </div>
 

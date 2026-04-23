@@ -74,6 +74,37 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(booking);
 }
 
+export async function PATCH(req: NextRequest) {
+  const supabase = getSupabase();
+  const { id, pin, name, phone } = await req.json();
+
+  if (pin !== ADMIN_PIN) {
+    return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
+  }
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const updates: Record<string, string> = {};
+  if (typeof name === "string" && name.trim()) updates.name = name.trim();
+  if (typeof phone === "string" && phone.trim()) updates.phone = phone.trim();
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
 export async function DELETE(req: NextRequest) {
   const supabase = getSupabase();
   const { id, pin } = await req.json();

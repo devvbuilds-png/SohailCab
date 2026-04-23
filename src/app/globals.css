@@ -87,24 +87,6 @@ body {
   display: none;
 }
 
-.sheet-overlay {
-  animation: fadeIn 0.18s ease-out;
-}
-
-.sheet-content {
-  animation: sheetUp 0.26s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes sheetUp {
-  from { transform: translateY(18px); opacity: 0.35; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
 .dialog-enter {
   animation: dialogIn 0.18s ease-out;
 }
@@ -140,8 +122,6 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-overlay,
-  .sheet-content,
   .dialog-enter,
   .card-press,
   .badge-pulse {

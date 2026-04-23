@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Direction } from "@/lib/types";
 import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime } from "@/lib/utils";
 import { GraduationCap, Minus, Plane, Plus } from "lucide-react";
@@ -12,12 +12,19 @@ interface RequestRideSheetProps {
   onClose: () => void;
   driverPhone: string;
   currentUrl: string;
+  initialDate?: string;
 }
 
-export default function RequestRideSheet({ open, onClose, driverPhone, currentUrl }: RequestRideSheetProps) {
+export default function RequestRideSheet({ open, onClose, driverPhone, currentUrl, initialDate }: RequestRideSheetProps) {
   const dates = useMemo(() => getNext7Dates(), []);
   const [direction, setDirection] = useState<Direction>("manipal-to-airport");
   const [date, setDate] = useState(dates[0]);
+
+  useEffect(() => {
+    if (open && initialDate) {
+      setDate(initialDate);
+    }
+  }, [open, initialDate]);
   const [time, setTime] = useState("06:00");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");

@@ -11,6 +11,7 @@ interface DateFilterProps {
   onCustomDateChange: (date: string | null) => void;
   minCustomDate: string;
   maxCustomDate: string;
+  datesWithRides: Set<string>;
 }
 
 export default function DateFilter({
@@ -21,24 +22,33 @@ export default function DateFilter({
   onCustomDateChange,
   minCustomDate,
   maxCustomDate,
+  datesWithRides,
 }: DateFilterProps) {
   const customActive = customDate !== null && customDate === selected;
+  const customHasRides = customDate !== null && datesWithRides.has(customDate);
 
   return (
     <div className="flex gap-2 overflow-x-auto py-1.5 scrollbar-none">
       {dates.map((date) => {
         const isActive = date === selected;
+        const hasRides = datesWithRides.has(date);
         return (
           <button
             key={date}
             onClick={() => onSelect(date)}
-            className={`shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold tracking-tight transition-all duration-200 ${
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-semibold tracking-tight transition-all duration-200 ${
               isActive
                 ? "border-primary bg-primary text-white shadow-[0_10px_24px_rgba(17,17,17,0.18)]"
                 : "border-border/80 bg-white/65 text-muted hover:border-secondary/40 hover:text-foreground"
             }`}
           >
-            {formatDateLabel(date)}
+            <span>{formatDateLabel(date)}</span>
+            {hasRides && (
+              <span
+                aria-label="has rides"
+                className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-white" : "bg-secondary"}`}
+              />
+            )}
           </button>
         );
       })}
@@ -70,7 +80,15 @@ export default function DateFilter({
               : "border-border/80 bg-white/65 text-muted"
           }`}
         >
-          <span>{formatDateLabel(customDate)}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span>{formatDateLabel(customDate)}</span>
+            {customHasRides && (
+              <span
+                aria-label="has rides"
+                className={`h-1.5 w-1.5 rounded-full ${customActive ? "bg-white" : "bg-secondary"}`}
+              />
+            )}
+          </span>
           <button
             onClick={(e) => {
               e.stopPropagation();

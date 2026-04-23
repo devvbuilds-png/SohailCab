@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Booking, Direction, Ride, RideFormData, RideRequest } from "@/lib/types";
 import { getNext7Dates, formatDateLabel, getDirectionLabel, formatDateShort, formatTime, toWhatsAppNumber } from "@/lib/utils";
-import { ChevronDown, ChevronUp, GraduationCap, Minus, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GraduationCap, Minus, Pencil, Plane, Plus, Sparkles, MessageCircle, Share2, Check, Users, Clock, X } from "lucide-react";
 import BottomSheet from "./BottomSheet";
 import TimePicker from "./TimePicker";
 
@@ -14,6 +14,15 @@ interface DriverSheetProps {
   onRideCreated: () => void;
   defaultTab?: "post" | "requests" | "passengers";
   currentUrl: string;
+  focusRideId?: string | null;
+  onFocusConsumed?: () => void;
+}
+
+interface RideEditForm {
+  direction: Direction;
+  date: string;
+  time: string;
+  total_seats: number;
 }
 
 type AcceptedResult = { request: RideRequest; ride: Ride };
@@ -25,6 +34,8 @@ export default function DriverSheet({
   onRideCreated,
   defaultTab = "post",
   currentUrl,
+  focusRideId = null,
+  onFocusConsumed,
 }: DriverSheetProps) {
   const [activeTab, setActiveTab] = useState<"post" | "requests" | "passengers">(defaultTab);
 
@@ -54,6 +65,21 @@ export default function DriverSheet({
   const [addingSaving, setAddingSaving] = useState(false);
   const [confirmDeleteBooking, setConfirmDeleteBooking] = useState<string | null>(null);
   const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
+
+  // Ride field editor state
+  const [editingRideId, setEditingRideId] = useState<string | null>(null);
+  const [rideEditForm, setRideEditForm] = useState<RideEditForm | null>(null);
+  const [rideEditSaving, setRideEditSaving] = useState(false);
+  const [rideEditError, setRideEditError] = useState<string | null>(null);
+
+  // Passenger field editor state
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [bookingEditName, setBookingEditName] = useState("");
+  const [bookingEditPhone, setBookingEditPhone] = useState("");
+  const [bookingEditSaving, setBookingEditSaving] = useState(false);
+
+  // Refs for scrolling a focused ride into view
+  const rideCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Keep passenger slots in sync with bookedSeats
   useEffect(() => {
@@ -107,6 +133,20 @@ export default function DriverSheet({
       if (defaultTab === "passengers") loadPassengerDashboard();
     }
   }, [open, defaultTab, loadRequests, loadPassengerDashboard]);
+
+  // When a ride is focused via shortcut, auto-expand its editor and scroll to it
+  useEffect(() => {
+    if (!open || !focusRideId || activeTab !== "passengers" || loadingPassengers) return;
+    const ride = allRides.find((r) => r.id === focusRideId);
+    if (!ride) return;
+    handleStartEditRide(ride);
+    requestAnimationFrame(() => {
+      const el = rideCardRefs.current[focusRideId];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, focusRideId, activeTab, loadingPassengers, allRides.length]);
 
   const handleTabChange = (tab: "post" | "requests" | "passengers") => {
     setActiveTab(tab);
@@ -175,7 +215,8 @@ export default function DriverSheet({
     const { request: req, ride } = result;
     const booked = ride.booked_seats;
     const seatsLeft = ride.total_seats - booked;
-    const msg = `🚗 Sohail's Cab\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\n\nBook a seat: ${currentUrl}`;
+    const shareUrl = `${currentUrl}?date=${req.date}`;
+    const msg = `🚗 Sohail's Cab\n\n${getDirectionLabel(req.direction)}\n${formatDateShort(req.date)} · ${formatTime(req.time)}\n\n${booked} person booked — sharing available, ${seatsLeft} seats left.\nFor fare negotiation and discount offers please DM me.\n\nBook a seat: ${shareUrl}`;
     window.location.href = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
@@ -209,6 +250,93 @@ export default function DriverSheet({
       }
     } finally {
       setDeletingBooking(null);
+    }
+  };
+
+  const handleStartEditRide = (ride: Ride) => {
+    setEditingRideId(ride.id);
+    setRideEditForm({
+      direction: ride.direction,
+      date: ride.date,
+      time: ride.time,
+      total_seats: ride.total_seats,
+    });
+    setRideEditError(null);
+  };
+
+  const handleCancelEditRide = () => {
+    setEditingRideId(null);
+    setRideEditForm(null);
+    setRideEditError(null);
+  };
+
+  const handleSaveEditRide = async (rideId: string) => {
+    if (!rideEditForm) return;
+    setRideEditSaving(true);
+    setRideEditError(null);
+    try {
+      const res = await fetch("/api/rides", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: rideId,
+          pin: "1234",
+          direction: rideEditForm.direction,
+          date: rideEditForm.date,
+          time: rideEditForm.time,
+          total_seats: rideEditForm.total_seats,
+        }),
+      });
+      if (res.ok) {
+        const updated: Ride = await res.json();
+        setAllRides((prev) => prev.map((r) => (r.id === rideId ? updated : r)));
+        onRideCreated();
+        handleCancelEditRide();
+      } else {
+        const { error } = await res.json().catch(() => ({ error: "Failed to save" }));
+        setRideEditError(error || "Failed to save");
+      }
+    } finally {
+      setRideEditSaving(false);
+    }
+  };
+
+  const handleStartEditBooking = (b: Booking) => {
+    setEditingBookingId(b.id);
+    setBookingEditName(b.name);
+    setBookingEditPhone(b.phone);
+  };
+
+  const handleCancelEditBooking = () => {
+    setEditingBookingId(null);
+    setBookingEditName("");
+    setBookingEditPhone("");
+  };
+
+  const handleSaveEditBooking = async (rideId: string, bookingId: string) => {
+    if (!bookingEditName.trim() || !bookingEditPhone.trim()) return;
+    setBookingEditSaving(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: bookingId,
+          pin: "1234",
+          name: bookingEditName.trim(),
+          phone: bookingEditPhone.trim(),
+        }),
+      });
+      if (res.ok) {
+        const updated: Booking = await res.json();
+        setBookingsMap((prev) => ({
+          ...prev,
+          [rideId]: (prev[rideId] || []).map((b) => (b.id === bookingId ? updated : b)),
+        }));
+        handleCancelEditBooking();
+      }
+    } finally {
+      setBookingEditSaving(false);
     }
   };
 
@@ -266,15 +394,131 @@ export default function DriverSheet({
   const renderRideCard = (ride: Ride) => {
     const rideBookings = bookingsMap[ride.id] || [];
     const isAdding = addingForRide === ride.id;
+    const isEditingRide = editingRideId === ride.id && rideEditForm !== null;
+    const dateChanged = isEditingRide && rideEditForm!.date !== ride.date;
+    const minSeats = ride.booked_seats;
 
     return (
-      <div key={ride.id} className="rounded-[1.3rem] border border-border/70 bg-white/80 p-4 space-y-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
-            {formatDateShort(ride.date)} · {formatTime(ride.time)}
-          </p>
-          <p className="mt-0.5 text-sm font-semibold text-foreground">{getDirectionLabel(ride.direction)}</p>
+      <div
+        key={ride.id}
+        ref={(el) => { rideCardRefs.current[ride.id] = el; }}
+        className="rounded-[1.3rem] border border-border/70 bg-white/80 p-4 space-y-3"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
+              {formatDateShort(ride.date)} · {formatTime(ride.time)}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{getDirectionLabel(ride.direction)}</p>
+            <p className="mt-0.5 text-[11px] text-muted">{ride.booked_seats}/{ride.total_seats} seats</p>
+          </div>
+          {!isEditingRide && (
+            <button
+              onClick={() => handleStartEditRide(ride)}
+              aria-label="Edit ride"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-muted transition-colors hover:border-secondary/40 hover:text-foreground"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
         </div>
+
+        {isEditingRide && rideEditForm && (
+          <div className="space-y-3 rounded-[1rem] border border-secondary/30 bg-surface/60 p-3">
+            <div>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Direction</label>
+              <div className="grid grid-cols-2 gap-2 rounded-[0.9rem] border border-border/70 bg-white p-1.5">
+                <button
+                  onClick={() => setRideEditForm((f) => f && { ...f, direction: "manipal-to-airport" })}
+                  className={`flex items-center justify-center gap-1.5 rounded-[0.7rem] px-2 py-2 text-xs font-semibold transition-all duration-200 ${rideEditForm.direction === "manipal-to-airport" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
+                >
+                  <Plane size={12} />
+                  To airport
+                </button>
+                <button
+                  onClick={() => setRideEditForm((f) => f && { ...f, direction: "airport-to-manipal" })}
+                  className={`flex items-center justify-center gap-1.5 rounded-[0.7rem] px-2 py-2 text-xs font-semibold transition-all duration-200 ${rideEditForm.direction === "airport-to-manipal" ? "bg-primary text-white" : "text-muted hover:text-foreground"}`}
+                >
+                  <GraduationCap size={12} />
+                  To Manipal
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Date</label>
+                <input
+                  type="date"
+                  value={rideEditForm.date}
+                  onChange={(e) => setRideEditForm((f) => f && { ...f, date: e.target.value })}
+                  className="w-full rounded-[0.7rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-secondary/50"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Time</label>
+                <input
+                  type="time"
+                  value={rideEditForm.time}
+                  onChange={(e) => setRideEditForm((f) => f && { ...f, time: e.target.value })}
+                  className="w-full rounded-[0.7rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-secondary/50"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.24em] text-muted">Max seats</label>
+              <div className="grid grid-cols-4 gap-2 rounded-[0.9rem] border border-border/70 bg-white p-1.5">
+                {[1, 2, 3, 4].map((n) => {
+                  const disabled = n < minSeats;
+                  const active = rideEditForm.total_seats === n;
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => !disabled && setRideEditForm((f) => f && { ...f, total_seats: n })}
+                      disabled={disabled}
+                      className={`rounded-[0.7rem] py-2 text-sm font-semibold transition-all duration-200 ${active ? "bg-primary text-white" : disabled ? "cursor-not-allowed text-muted-light" : "text-muted hover:text-foreground"}`}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+              {minSeats > 1 && (
+                <p className="mt-1.5 text-[11px] text-muted">Can&apos;t go below {minSeats} — remove passengers first.</p>
+              )}
+            </div>
+
+            {dateChanged && (
+              <p className="rounded-[0.7rem] border border-secondary/30 bg-secondary/5 px-3 py-2 text-[11px] text-secondary">
+                Date changed — remember to update booked passengers on WhatsApp.
+              </p>
+            )}
+
+            {rideEditError && (
+              <p className="rounded-[0.7rem] border border-danger/30 bg-danger-light px-3 py-2 text-[11px] text-danger">
+                {rideEditError}
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleCancelEditRide}
+                disabled={rideEditSaving}
+                className="rounded-[0.8rem] border border-border/70 bg-white px-3 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSaveEditRide(ride.id)}
+                disabled={rideEditSaving}
+                className="rounded-[0.8rem] bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {rideEditSaving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {rideBookings.length === 0 ? (
           <p className="text-xs text-muted-light">No passengers yet</p>
@@ -283,24 +527,66 @@ export default function DriverSheet({
             {rideBookings.map((b) => {
               const isConfirming = confirmDeleteBooking === b.id;
               const isDeleting = deletingBooking === b.id;
+              const isEditingThis = editingBookingId === b.id;
               return (
                 <div key={b.id} className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-baseline gap-2 min-w-0">
-                      <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
-                      <span className="text-xs text-muted shrink-0">{b.phone}</span>
+                  {isEditingThis ? (
+                    <div className="space-y-2 rounded-[0.8rem] border border-secondary/30 bg-surface/60 p-2.5">
+                      <input
+                        placeholder="Name"
+                        value={bookingEditName}
+                        onChange={(e) => setBookingEditName(e.target.value)}
+                        className="w-full rounded-[0.6rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+                      />
+                      <input
+                        placeholder="Phone"
+                        type="tel"
+                        value={bookingEditPhone}
+                        onChange={(e) => setBookingEditPhone(e.target.value)}
+                        className="w-full rounded-[0.6rem] border border-border/70 bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-light outline-none focus:border-secondary/50"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={handleCancelEditBooking}
+                          disabled={bookingEditSaving}
+                          className="rounded-[0.6rem] border border-border/70 bg-white px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleSaveEditBooking(ride.id, b.id)}
+                          disabled={bookingEditSaving || !bookingEditName.trim() || !bookingEditPhone.trim()}
+                          className="rounded-[0.6rem] bg-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        >
+                          {bookingEditSaving ? "…" : "Save"}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {sourceTag(b.source)}
-                      <button
-                        onClick={() => setConfirmDeleteBooking(isConfirming ? null : b.id)}
-                        aria-label="Remove passenger"
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-white text-muted transition-colors hover:border-danger/40 hover:text-danger"
-                      >
-                        <X size={11} />
-                      </button>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-2 min-w-0">
+                        <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
+                        <span className="text-xs text-muted shrink-0">{b.phone}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {sourceTag(b.source)}
+                        <button
+                          onClick={() => handleStartEditBooking(b)}
+                          aria-label="Edit passenger"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-white text-muted transition-colors hover:border-secondary/40 hover:text-foreground"
+                        >
+                          <Pencil size={10} />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteBooking(isConfirming ? null : b.id)}
+                          aria-label="Remove passenger"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-white text-muted transition-colors hover:border-danger/40 hover:text-danger"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   {isConfirming && (
                     <div className="flex items-center justify-between gap-2 rounded-[0.8rem] border border-danger/30 bg-danger-light px-3 py-2">
                       <p className="text-[11px] font-medium text-danger">Remove {b.name}?</p>
