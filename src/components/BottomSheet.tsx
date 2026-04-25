@@ -20,7 +20,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
-  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevOpen, setPrevOpen] = useState(false);
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const dragStartRef = useRef<{ y: number; t: number } | null>(null);
