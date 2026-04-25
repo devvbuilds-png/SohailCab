@@ -26,6 +26,10 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
   const dragStartRef = useRef<{ y: number; t: number } | null>(null);
   const lastMoveRef = useRef<{ y: number; t: number } | null>(null);
   const shouldNotifyCloseRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   if (open !== prevOpen) {
     setPrevOpen(open);
@@ -57,11 +61,11 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
       setDragOffset(0);
       if (shouldNotifyCloseRef.current) {
         shouldNotifyCloseRef.current = false;
-        onClose();
+        onCloseRef.current();
       }
     }, CLOSE_DURATION_MS);
     return () => window.clearTimeout(timer);
-  }, [closing, onClose]);
+  }, [closing]);
 
   const triggerClose = useCallback(() => {
     if (closing) return;
@@ -130,7 +134,10 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
       : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ pointerEvents: closing || !entered ? "none" : "auto" }}
+    >
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         style={{ opacity: overlayOpacity, transition: overlayTransition }}
