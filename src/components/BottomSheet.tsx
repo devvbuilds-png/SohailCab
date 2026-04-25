@@ -12,6 +12,7 @@ const DISMISS_DISTANCE_RATIO = 0.4;
 const DISMISS_VELOCITY = 0.6;
 const CLOSE_DURATION_MS = 280;
 const OPEN_DURATION_MS = 260;
+const DRAG_COMMIT_PX = 8; // downward px before we claim the gesture
 
 export default function BottomSheet({ open, onClose, children }: BottomSheetProps) {
   const [mounted, setMounted] = useState(false);
@@ -27,6 +28,10 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
   const lastMoveRef = useRef<{ y: number; t: number } | null>(null);
   const shouldNotifyCloseRef = useRef(false);
   const onCloseRef = useRef(onClose);
+  // Ref mirrors so pointer-move handlers see current values without stale closures
+  const isDraggingRef = useRef(false);
+  const startScrollTopRef = useRef(0);
+
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
@@ -41,6 +46,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
     } else if (mounted && !closing) {
       setClosing(true);
       setIsDragging(false);
+      isDraggingRef.current = false;
     }
   }
 
@@ -59,6 +65,7 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
       setClosing(false);
       setEntered(false);
       setDragOffset(0);
+      isDraggingRef.current = false;
       if (shouldNotifyCloseRef.current) {
         shouldNotifyCloseRef.current = false;
         onCloseRef.current();
@@ -72,37 +79,66 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
     shouldNotifyCloseRef.current = true;
     dragStartRef.current = null;
     lastMoveRef.current = null;
+    isDraggingRef.current = false;
     setIsDragging(false);
     setClosing(true);
   }, [closing]);
 
-  const onHandlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onSheetPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (closing) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const t = performance.now();
-    dragStartRef.current = { y: e.clientY, t };
-    lastMoveRef.current = { y: e.clientY, t };
+    dragStartRef.current = { y: e.clientY, t: performance.now() };
+    lastMoveRef.current = { y: e.clientY, t: performance.now() };
+    // Snapshot scroll position — we only allow the dismiss gesture from scroll-top
+    startScrollTopRef.current = sheetRef.current?.scrollTop ?? 0;
     setSheetHeight(sheetRef.current?.offsetHeight ?? 0);
-    setIsDragging(true);
+    isDraggingRef.current = false;
+    // Don't capture yet; we wait to see if this is a downward gesture
   };
 
-  const onHandlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onSheetPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragStartRef.current) return;
-    const dy = Math.max(0, e.clientY - dragStartRef.current.y);
-    setDragOffset(dy);
+    const dy = e.clientY - dragStartRef.current.y;
+
+    if (!isDraggingRef.current) {
+      if (dy > DRAG_COMMIT_PX && startScrollTopRef.current === 0) {
+        // Confirmed downward swipe from scroll-top — claim the gesture
+        e.currentTarget.setPointerCapture(e.pointerId);
+        isDraggingRef.current = true;
+        setIsDragging(true);
+        setDragOffset(Math.max(0, dy));
+      } else if (dy < 0) {
+        // Moving upward = user is scrolling — stop tracking entirely
+        dragStartRef.current = null;
+        lastMoveRef.current = null;
+      }
+      return;
+    }
+
+    setDragOffset(Math.max(0, dy));
     lastMoveRef.current = { y: e.clientY, t: performance.now() };
   };
 
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onSheetPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragStartRef.current) return;
+
+    if (!isDraggingRef.current) {
+      // Tap or ignored gesture — just clean up
+      dragStartRef.current = null;
+      lastMoveRef.current = null;
+      return;
+    }
+
     const height = sheetRef.current?.offsetHeight ?? window.innerHeight;
     const dy = Math.max(0, e.clientY - dragStartRef.current.y);
     const last = lastMoveRef.current ?? dragStartRef.current;
     const dt = Math.max(1, last.t - dragStartRef.current.t);
     const velocity = (last.y - dragStartRef.current.y) / dt;
+
     dragStartRef.current = null;
     lastMoveRef.current = null;
+    isDraggingRef.current = false;
     setIsDragging(false);
+
     if (dy > height * DISMISS_DISTANCE_RATIO || velocity > DISMISS_VELOCITY) {
       triggerClose();
     } else {
@@ -152,15 +188,13 @@ export default function BottomSheet({ open, onClose, children }: BottomSheetProp
           willChange: "transform",
         }}
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={onSheetPointerDown}
+        onPointerMove={onSheetPointerMove}
+        onPointerUp={onSheetPointerUp}
+        onPointerCancel={onSheetPointerUp}
       >
-        <div
-          className="-mx-5 flex select-none items-center justify-center py-3 cursor-grab active:cursor-grabbing"
-          style={{ touchAction: "none" }}
-          onPointerDown={onHandlePointerDown}
-          onPointerMove={onHandlePointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-        >
+        {/* Visual handle — drag is now handled by the whole sheet */}
+        <div className="pointer-events-none -mx-5 flex select-none items-center justify-center py-3">
           <div
             className="h-1.5 rounded-full"
             style={{
