@@ -74,7 +74,8 @@ export default function Home() {
         setSelectedDate(dateParam);
       }
     }
-  }, [dates, maxCustomDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredRides = rides.filter((r) => r.date === selectedDate);
 
